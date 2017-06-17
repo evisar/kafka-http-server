@@ -31,11 +31,9 @@ func (sse *sse) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
     for {
       select {
-
         case <- quit:
           log.Println("Connection Closed")
           return
-
         default:
           sse.handler(stream)
       }
