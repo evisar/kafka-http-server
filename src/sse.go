@@ -7,7 +7,9 @@ import (
 	"time"
 )
 
-type sse struct {}
+type sse struct {
+	handler func(chan []byte)
+}
 
 func (sse *sse) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	flusher, ok := rw.(http.Flusher)
@@ -23,23 +25,27 @@ func (sse *sse) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	stream := make(chan []byte)
 	quit := make(chan bool)
-	go func() {
-		log.Println("Connection Opened")
-		for {
-			select {
-			case <- quit:
-				log.Println("Connection Closed")
-				return
-			default:
-				sse.handler(stream)
-			}
-		}		
-	}()
 
 	go func() {
+		log.Println("Connection Opened")
+
+		for {
+			select {
+
+				case <- quit:
+					log.Println("Connection Closed")
+					return
+
+				default:
+					sse.handler(stream)
+			}
+		}			
+	}()
+	
+	go func(){
 		<- rw.(http.CloseNotifier).CloseNotify()
 		quit <- true
-		close(stream)	
+		close(stream)
 	}()
 
 	for {
@@ -49,17 +55,17 @@ func (sse *sse) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 }
 
-func (sse *sse) handler(stream chan []byte){
-	time.Sleep(time.Second * 2)
-	eventString := fmt.Sprintf("the time is %v", time.Now())
-	log.Println("Receiving event")
-	stream <- []byte(eventString)
-}
-
 func main() {
-	//start HTTP server
 	log.Println("Starting Server")
-	log.Fatal("HTTP server error: ", http.ListenAndServe(":8080", &sse{}))
-	log.Println("Server Stopped")
 
+	sse := &sse {
+		handler: func (stream chan []byte){
+			time.Sleep(time.Second * 2)
+			eventString := fmt.Sprintf("the time is %v", time.Now())
+			log.Println("Receiving event")
+			stream <- []byte(eventString)
+		},
+	}
+
+	log.Fatal("HTTP server error: ", http.ListenAndServe(":8080", sse))
 }
