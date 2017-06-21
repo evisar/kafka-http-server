@@ -26,6 +26,12 @@ func (sse *sse) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
   stream := make(chan []byte)
   quit := make(chan bool)
 
+  go func(){
+    <- rw.(http.CloseNotifier).CloseNotify()
+    quit <- true
+    close(stream)
+  }()
+
   go func() {
     log.Println("Connection Opened")
 
@@ -40,12 +46,6 @@ func (sse *sse) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
     }			
   }()
   
-  go func(){
-    <- rw.(http.CloseNotifier).CloseNotify()
-    quit <- true
-    close(stream)
-  }()
-
   for {
     fmt.Fprintf(rw, "data: %s\n\n", <- stream)
     flusher.Flush()
@@ -58,7 +58,7 @@ func main() {
 
   sse := &sse {
     handler: func (stream chan []byte){
-      time.Sleep(time.Second * 2)
+      time.Sleep(time.Second)
       eventString := fmt.Sprintf("the time is %v", time.Now())
       log.Println("Receiving event")
       stream <- []byte(eventString)
